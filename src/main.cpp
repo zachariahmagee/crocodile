@@ -1,7 +1,7 @@
 // main.cpp
 
-#include "../lib/raylib.h"
-#include "../lib/raymath.h"
+#include "raylib.h"
+#include "raymath.h"
 
 struct ApplicationState {
     struct Window {

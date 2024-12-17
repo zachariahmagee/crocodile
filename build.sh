@@ -3,7 +3,7 @@
 # clang -std=c11 ./src/main.c -o bin/build -I/$(pkg-config --libs --cflags raylib)
 
 
-g++ -std=c++14  ./src/main.cpp -o bin/build -I/$(pkg-config --libs --cflags raylib) \
+bear -- g++ -std=c++14  ./src/main.cpp -o bin/build -I/$(pkg-config --libs --cflags raylib) \
 	-L$(pwd)/lib \
 	-lraylib -lEGL -lGLESv2 \
 	-Wl,-rpath,@executable_path/../lib

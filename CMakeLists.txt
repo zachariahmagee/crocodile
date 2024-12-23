@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 
 # Project name and C++ standard
 project(Crocodile)
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_CXX_STANDARD 14)
 
 # Enable compile_commands.json generation
@@ -19,14 +21,20 @@ file(GLOB_RECURSE SOURCES src/*.cpp)
 include_directories(
     ${CMAKE_SOURCE_DIR}/include     # Custom headers
     ${RAYLIB_INCLUDE_DIRS}          # Raylib headers
+    /opt/homebrew/opt/llvm/include/c++/v1
+    /opt/homebrew/opt/llvm/include
 )
-
-find_library(EGL_LIB EGL)
-find_library(GLES_LIB GLESv2)
 
 # Link directories
 link_directories(${CMAKE_SOURCE_DIR}/lib)
 link_directories(${RAYLIB_LIBRARY_DIRS})
+link_directories(/opt/homebrew/opt/llvm/lib)
+
+# Set RPATH for runtime library resolution
+#set(CMAKE_SKIP_BUILD_RPATH FALSE)
+#set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+#set(CMAKE_INSTALL_RPATH "@loader_path")
+#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Create the executable
 add_executable(build ${SOURCES})
@@ -38,18 +46,10 @@ target_link_libraries(build
     EGL                      # Link libEGL
 )
 
-# Set rpath so libraries in 'lib' can be found at runtime
-set_target_properties(build PROPERTIES
-    INSTALL_RPATH "@executable_path/../lib"
-    BUILD_WITH_INSTALL_RPATH ON
-)
-
-set_target_properties(build PROPERTIES
-    INSTALL_RPATH "@loader_path/../lib"
-    BUILD_WITH_INSTALL_RPATH ON
-)
-
-# Output binary directory
+# Set runtime search paths for libraries
 set_target_properties(build PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
+    INSTALL_RPATH "@executable_path/../lib"
+    BUILD_WITH_INSTALL_RPATH ON
+    LINK_FLAGS "-Wl,-rpath,@executable_path/../lib"
 )

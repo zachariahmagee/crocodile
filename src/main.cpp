@@ -2,6 +2,12 @@
 
 #include "raylib.h"
 #include "raymath.h"
+#include "../lib/raygui/src/raygui.h"
+
+#include <stdio.h>
+#include <dirent.h>
+#include <string>
+
 
 struct ApplicationState {
     struct Window {
@@ -23,12 +29,27 @@ void window_resize(void);
 
 int main(void) {
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-
+  
   circle.center = (Vector2){400, 400};
   circle.r = 10;
   InitWindow(app.window.width, app.window.height, "Practice 2D");
   // SetTargetFPS(60);
+  
+  DIR *dir;
+  struct dirent *entry;
+  dir = opendir("/dev/");
+  if (dir == NULL) {
+    printf("Error opening /dev/ directory");
+  }
 
+  while ((entry = readdir(dir)) != nullptr) {
+    if (strncmp(entry->d_name, "tty.", 4) == 0) {
+      printf("Port: %s\n", entry->d_name);
+    }
+  }
+
+  closedir(dir);
+  
   while (!WindowShouldClose()) {
     if (IsWindowResized() && !IsWindowFullscreen()) {
       app.window.width = GetScreenWidth();
@@ -60,7 +81,11 @@ int main(void) {
                                      static_cast<float>(app.window.width - 20),
                                      static_cast<float>(app.window.height - 20)},
                          1, BLACK);
+
     DrawCircle(circle.center.x, circle.center.y, circle.r, RED);
+
+    
+
     DrawFPS(20, 20);
     EndDrawing();
 

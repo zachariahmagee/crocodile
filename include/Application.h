@@ -24,11 +24,14 @@ struct Window {
 class Application {
 private:
   
-  std::vector<std::function<void()>> draw_list;
 
 public:
   Window window;
   Font font;
+  Vector2 mouse;
+  
+  std::vector<std::function<void()>> draw_list;
+  std::vector<std::function<void(Vector2)>> interaction_list;
 
 
   ~Application(void) = default;
@@ -39,7 +42,7 @@ public:
     InitWindow(window.width, window.height, "Crocodile");
     // SetTargetFPS(60);
     font = LoadFontEx("../assets/Iosevka-Regular.ttc", 13, nullptr, 0);
-    GuiSetFont(font);
+    //GuiSetFont(font);
   };
 
   void run(void) {
@@ -49,7 +52,7 @@ public:
         window.height = GetScreenHeight();
       }
 
-      if (IsKeyPressed(KEY_ENTER) &&
+  if (IsKeyPressed(KEY_ENTER) &&
           (IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT))) {
         // see what display we are on right now
         window.display = GetCurrentMonitor();
@@ -69,13 +72,15 @@ public:
       }
 
       BeginDrawing();
-      Vector2 mouse = GetMousePosition();
+      mouse = GetMousePosition();
       ClearBackground(RAYWHITE);
+      
+
+      draw();
       DrawFPS(20, 20);
-
-        draw();
-
       EndDrawing();
+
+      click();
     };
     CloseWindow();
   };
@@ -84,9 +89,20 @@ public:
     draw_list.push_back(fun);
   }
 
+  void add_click(std::function<void(Vector2)> fun) {
+    interaction_list.push_back(fun);
+  }
+
   void draw() {
     for (auto& execute : draw_list) {
       execute();
+    }
+  }
+
+  void click() {
+    mouse = GetMousePosition();
+    for (auto& clickable : interaction_list) {
+      clickable(mouse); 
     }
   }
 };

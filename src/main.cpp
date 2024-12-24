@@ -2,20 +2,24 @@
 
 #include "raylib.h"
 #include "raymath.h"
+
 #include "../lib/raygui/src/raygui.h"
+#define RAYGUI_IMPLEMENTATION
+#include "raylib.h";
+
+#include "../include/Application.h"
+
+#include <thread>
 
 #include <stdio.h>
 #include <dirent.h>
 #include <string>
 
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+// tty.usbmodem122391201
 
-struct ApplicationState {
-    struct Window {
-        int width = 800;
-        int height = 800;
-        int display = 1;
-    } window;
-};
 
 typedef struct Circle {
   Vector2 center;
@@ -23,18 +27,30 @@ typedef struct Circle {
 } Circle;
 
 Circle circle;
-ApplicationState app;
+Application app;
 
+void check_for_serial_ports(void);
+void draw_gui(void);
 void window_resize(void);
 
+void border();
+void draw_circle();
+void circle_click(Vector2);
+
+//  GuiPanel(Rectangle bounds, const char *text); 
+
 int main(void) {
-  SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-  
+
+  app.init();
+
+  // SetTargetFPS(60);
   circle.center = (Vector2){400, 400};
   circle.r = 10;
-  InitWindow(app.window.width, app.window.height, "Practice 2D");
-  // SetTargetFPS(60);
-  
+
+  app.draw_list.push_back(border);
+  app.draw_list.push_back(draw_circle);
+  app.interaction_list.push_back(circle_click);
+
   DIR *dir;
   struct dirent *entry;
   dir = opendir("/dev/");
@@ -49,54 +65,7 @@ int main(void) {
   }
 
   closedir(dir);
-  
-  while (!WindowShouldClose()) {
-    if (IsWindowResized() && !IsWindowFullscreen()) {
-      app.window.width = GetScreenWidth();
-      app.window.height = GetScreenHeight();
-    }
-
-    if (IsKeyPressed(KEY_ENTER) &&
-        (IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT))) {
-      // see what display we are on right now
-      app.window.display = GetCurrentMonitor();
-
-      if (IsWindowFullscreen()) {
-        // if we are full screen, then go back to the windowed size
-        SetWindowSize(app.window.width, app.window.height);
-      } else {
-        // if we are not full screen, set the window size to match the monitor
-        // we are on
-        SetWindowSize(GetMonitorWidth(app.window.display), GetMonitorHeight(app.window.display));
-      }
-
-      // toggle the state
-      ToggleFullscreen();
-    }
-
-    BeginDrawing();
-    Vector2 mouse = GetMousePosition();
-    ClearBackground(RAYWHITE);
-    DrawRectangleLinesEx((Rectangle){10, 10,
-                                     static_cast<float>(app.window.width - 20),
-                                     static_cast<float>(app.window.height - 20)},
-                         1, BLACK);
-
-    DrawCircle(circle.center.x, circle.center.y, circle.r, RED);
-
-    
-
-    DrawFPS(20, 20);
-    EndDrawing();
-
-    if (CheckCollisionPointCircle(mouse, circle.center, circle.r) &&
-        IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-      circle.center.x += mouse.x - circle.center.x;
-      circle.center.y += mouse.y - circle.center.y;
-    }
-  }
-
-  CloseWindow();
+  app.run();
 
   return 0;
 }
@@ -104,3 +73,22 @@ int main(void) {
 void mouseClicked(Vector2 mouse) {}
 
 void window_resize() {}
+
+void border() {
+    DrawRectangleLinesEx((Rectangle){10, 10,
+                                     static_cast<float>(app.window.width - 20),
+                                     static_cast<float>(app.window.height - 20)},
+                         1, BLACK);
+
+}
+void draw_circle() {
+    DrawCircle(circle.center.x, circle.center.y, circle.r, RED);
+}
+
+void circle_click(Vector2 mouse) {
+    if (CheckCollisionPointCircle(mouse, circle.center, circle.r) &&
+        IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+      circle.center.x += mouse.x - circle.center.x;
+      circle.center.y += mouse.y - circle.center.y;
+    }
+}

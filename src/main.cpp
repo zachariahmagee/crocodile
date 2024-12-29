@@ -1,19 +1,17 @@
 // main.cpp
 
 #include "raylib.h"
-#include "raymath.h"
+//#include "raymath.h"
 
-#include "../lib/raygui/src/raygui.h"
+// #include "../lib/raygui/src/raygui.h"
 #define RAYGUI_IMPLEMENTATION
-#include "raylib.h";
+//#include "raylib.h"
 
 #include "../include/Application.h"
-
-#include <thread>
+#include "../include/serial.h"
 
 #include <stdio.h>
 #include <dirent.h>
-#include <string>
 
 #include <fcntl.h>
 #include <termios.h>
@@ -38,11 +36,18 @@ void draw_circle();
 void circle_click(Vector2);
 
 //  GuiPanel(Rectangle bounds, const char *text); 
+Serial serial;
+
+void stop_serial() {
+  if (IsKeyPressed(KEY_D)) {
+    serial.disconnect();
+  }
+}
 
 int main(void) {
 
   app.init();
-
+  
   // SetTargetFPS(60);
   circle.center = (Vector2){400, 400};
   circle.r = 10;
@@ -50,6 +55,7 @@ int main(void) {
   app.draw_list.push_back(border);
   app.draw_list.push_back(draw_circle);
   app.interaction_list.push_back(circle_click);
+  app.draw_list.push_back(stop_serial);
 
   DIR *dir;
   struct dirent *entry;
@@ -65,6 +71,7 @@ int main(void) {
   }
 
   closedir(dir);
+  serial.init("/dev/tty.usbmodem122391201");
   app.run();
 
   return 0;

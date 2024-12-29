@@ -21,6 +21,7 @@ struct Window {
   // bool isVisible = true; // probably not needed
 };
 
+
 class Application {
 private:
   
@@ -32,7 +33,7 @@ public:
   
   std::vector<std::function<void()>> draw_list;
   std::vector<std::function<void(Vector2)>> interaction_list;
-
+  
 
   ~Application(void) = default;
 

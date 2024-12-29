@@ -40,7 +40,7 @@ link_directories(/opt/homebrew/opt/llvm/lib)
 add_executable(build ${SOURCES})
 
 # Add raygui include directory
-target_include_directories(${PROJECT_NAME} PRIVATE lib/raygui/src)
+#target_include_directories(${PROJECT_NAME} PRIVATE lib/raygui/src)
 
 # Link libraries
 target_link_libraries(build

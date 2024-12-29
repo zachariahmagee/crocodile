@@ -1,6 +1,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <fcntl.h>
+#include <sys/_types/_ssize_t.h>
 #include <sys/fcntl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -14,9 +15,12 @@
 
 // tty.usbmodem122391201
 
+
+
+
 class Serial {
 private:
-  const char* portName;
+  //const char* portName;
   bool connected = false;
   std::queue<std::string> messages;
   std::mutex queue_mutex;
@@ -25,37 +29,98 @@ private:
   int serialPort;
   std::thread readerThread, processorThread;
 
+
 public:
-  // TODO: Move processMessage and readSerialPort to another class?
   void processMessage() {
     while (connected) {
       std::unique_lock<std::mutex> lock(queue_mutex);
       queue_cv.wait(lock, [this] { return !messages.empty() || !connected;  });
+
+      while (!messages.empty()) {
+        std::string message = messages.front();
+        messages.pop();
+        lock.unlock();
+
+        // TODO: Parse incoming data
+        if (!messages.empty()) {
+          printf("Received Line: %s\n", message.c_str());
+        } else {
+          printf("Warning: Empty line received\n");
+        }
+        lock.lock();
+      }
     }
 
   }
-  void readSerialPort(int) {}
+  void readSerialPort() {
+    std::string buffer;
+    //std::string line;
+    char temp[1024];
+
+    while (connected) {
+      ssize_t bytesRead = read(serialPort, temp, sizeof(temp) - 1);
+
+      if (bytesRead > 0) {
+        temp[bytesRead] = '\0';
+        buffer += temp;
+
+        // check for newlines
+        size_t pos = 0;
+        while ((pos = buffer.find('\n')) != std::string::npos) {
+          if (pos + 1 <= buffer.size()) {
+            std::string line = buffer.substr(0, pos);
+            printf("Current buf: %s (%zu)\n", buffer.c_str(), buffer.size());
+            buffer.erase(0, pos + 1);
+            printf("After erase: %s, (%zu)\n", buffer.c_str(), buffer.size());
+            // push line into the queue
+            {
+              std::lock_guard<std::mutex> lock(queue_mutex);
+              messages.push(line);
+              printf("Pushed line to messages: \"%s\" (%zu)\n", line.c_str(), messages.size());
+            }
+
+            queue_cv.notify_one();
+          } else {
+            printf("Unexpected buffer state, pos: %zu, buffer size: %zu\n", pos, buffer.size());
+          }
+        }
+      } else if (bytesRead == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        printf("Error reading serial port: %s\nDisconnecting\n", strerror(errno));
+        connected = false;
+        break;
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
 
   int disconnect() {
+    if (!connected) return -1;
     this->connected = false;
-    queue_cv.notify_all();
-    readerThread.join();
-    processorThread.join();
-    close(serialPort);
+    queue_cv.notify_all();  
+    if (readerThread.joinable()) {
+      readerThread.join();
+    }
+    if (processorThread.joinable()) {
+      processorThread.join();
+    }
+    if (serialPort != -1) {
+      close(serialPort);
+      serialPort = -1;
+    }
     return 0;
   }
 
   int init(const char* portName) {
-    this->portName = portName;
-    serialPort = open(this->portName, O_RDWR | O_NOCTTY | O_NDELAY);
+    serialPort = open(portName, O_RDWR | O_NOCTTY | O_NDELAY);
     if (serialPort == -1) {
-      printf("Error opening serial port: %s - %s", portName, strerror(errno));
+      printf("Error opening serial port: %s - %s\n", portName, strerror(errno));
       return 1;
     }
 
     struct termios tty;
     if (tcgetattr(serialPort, &tty) != 0) {
-      printf("Error getting terminal attributes: %s", strerror(errno));
+      printf("Error getting terminal attributes: %s\n", strerror(errno));
       close(serialPort);
       return 1;
     }
@@ -78,16 +143,16 @@ public:
     
     // Apply settings
     if (tcsetattr(serialPort, TCSANOW, &tty) != 0) {
-      printf("Error getting terminal attributes: %s", strerror(errno));
+      printf("Error getting terminal attributes: %s\n", strerror(errno));
       close(serialPort);
       return 1;
     }
     this->connected = true;
 
-    std::thread readerThread(readSerialPort, serialPort);
-    std::thread processorThread(processMessage);
+    std::thread readerThread(&Serial::readSerialPort, this);//&MessageProcessor::read_serial_port, mp);
+    std::thread processorThread(&Serial::processMessage, this);
 
-    printf("MESSAGE: Press \"s\" to stop");
+    printf("MESSAGE: Press \"d\" to stop\n");
 
     //char temp[256];
     //ssize_t bytes_read = read(serialPort, temp, sizeof(temp)- 1);

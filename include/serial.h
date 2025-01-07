@@ -1,27 +1,29 @@
 #include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <fcntl.h>
 #include <sys/_types/_ssize_t.h>
 #include <sys/fcntl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <cstring>
 
-#include <vector>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
 #include <queue>
-
+#include <thread>
+#include <vector>
+#include <concepts>
 // tty.usbmodem122391201
 
-
-
+template <typename T>
+concept Pushable = requires(T obj, double value) {
+  { obj.push(value) };
+};
 
 class Serial {
 private:
-  //const char* portName;
-  bool connected = false;
+  // const char* portName;
+  std::atomic<bool> connected{false};
   std::queue<std::string> messages;
   std::mutex queue_mutex;
   std::condition_variable queue_cv;
@@ -29,12 +31,11 @@ private:
   int serialPort;
   std::thread readerThread, processorThread;
 
-
 public:
   void processMessage() {
     while (connected) {
       std::unique_lock<std::mutex> lock(queue_mutex);
-      queue_cv.wait(lock, [this] { return !messages.empty() || !connected;  });
+      queue_cv.wait(lock, [this] { return !messages.empty() || !connected; });
 
       while (!messages.empty()) {
         std::string message = messages.front();
@@ -50,11 +51,10 @@ public:
         lock.lock();
       }
     }
-
   }
   void readSerialPort() {
     std::string buffer;
-    //std::string line;
+    // std::string line;
     char temp[1024];
 
     while (connected) {
@@ -69,23 +69,26 @@ public:
         while ((pos = buffer.find('\n')) != std::string::npos) {
           if (pos + 1 <= buffer.size()) {
             std::string line = buffer.substr(0, pos);
-            printf("Current buf: %s (%zu)\n", buffer.c_str(), buffer.size());
+            //printf("Current buf: %s (%zu)\n", buffer.c_str(), buffer.size());
             buffer.erase(0, pos + 1);
-            printf("After erase: %s, (%zu)\n", buffer.c_str(), buffer.size());
+            //printf("After erase: %s, (%zu)\n", buffer.c_str(), buffer.size());
             // push line into the queue
             {
               std::lock_guard<std::mutex> lock(queue_mutex);
               messages.push(line);
-              printf("Pushed line to messages: \"%s\" (%zu)\n", line.c_str(), messages.size());
+              printf("Pushed line to messages: \"%s\" (%zu)\n", line.c_str(),
+                     messages.size());
             }
 
             queue_cv.notify_one();
           } else {
-            printf("Unexpected buffer state, pos: %zu, buffer size: %zu\n", pos, buffer.size());
+            printf("Unexpected buffer state, pos: %zu, buffer size: %zu\n", pos,
+                   buffer.size());
           }
         }
       } else if (bytesRead == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        printf("Error reading serial port: %s\nDisconnecting\n", strerror(errno));
+        printf("Error reading serial port: %s\nDisconnecting\n",
+               strerror(errno));
         connected = false;
         break;
       }
@@ -95,9 +98,12 @@ public:
   }
 
   int disconnect() {
-    if (!connected) return -1;
+    if (!connected) {
+      return -1;
+    }
     this->connected = false;
-    queue_cv.notify_all();  
+    queue_cv.notify_all();
+
     if (readerThread.joinable()) {
       readerThread.join();
     }
@@ -111,7 +117,7 @@ public:
     return 0;
   }
 
-  int init(const char* portName) {
+  int init(const char *portName) {
     serialPort = open(portName, O_RDWR | O_NOCTTY | O_NDELAY);
     if (serialPort == -1) {
       printf("Error opening serial port: %s - %s\n", portName, strerror(errno));
@@ -124,23 +130,24 @@ public:
       close(serialPort);
       return 1;
     }
-    
+
     // set baud rate
     cfsetispeed(&tty, B115200); // input speed
     cfsetospeed(&tty, B115200); // output speed
-    
+
     // Configure 8N1 (8 data bits, no parity, 1 stop bit)
     tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8; // 8-bit characters
     tty.c_cflag &= ~PARENB;                     // No parity
     tty.c_cflag &= ~CSTOPB;                     // 1 stop bit
     tty.c_cflag &= ~CRTSCTS;                    // No hardware flow control
-    tty.c_cflag |= (CLOCAL | CREAD);            // Enable receiver, ignore modem status lines
+    tty.c_cflag |=
+        (CLOCAL | CREAD); // Enable receiver, ignore modem status lines
 
     // Configure raw input mode
     tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // Raw input mode
     tty.c_iflag &= ~(IXON | IXOFF | IXANY);         // No software flow control
-    tty.c_oflag &= ~OPOST;                         // Raw output
-    
+    tty.c_oflag &= ~OPOST;                          // Raw output
+
     // Apply settings
     if (tcsetattr(serialPort, TCSANOW, &tty) != 0) {
       printf("Error getting terminal attributes: %s\n", strerror(errno));
@@ -149,14 +156,21 @@ public:
     }
     this->connected = true;
 
-    std::thread readerThread(&Serial::readSerialPort, this);//&MessageProcessor::read_serial_port, mp);
-    std::thread processorThread(&Serial::processMessage, this);
-
+    try {
+    readerThread = std::thread(&Serial::readSerialPort, this); 
+    processorThread = std::thread(&Serial::processMessage, this);
+    } catch (...) {
+      printf("Error starting threads.\n");
+      connected = false;
+      close(serialPort);
+      serialPort = -1;
+      return 1;
+    }
     printf("MESSAGE: Press \"d\" to stop\n");
 
-    //char temp[256];
-    //ssize_t bytes_read = read(serialPort, temp, sizeof(temp)- 1);
+    // char temp[256];
+    // ssize_t bytes_read = read(serialPort, temp, sizeof(temp)- 1);
 
     return 0;
-  } 
+  }
 };
